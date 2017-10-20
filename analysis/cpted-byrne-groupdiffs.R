@@ -1,4 +1,4 @@
-
+```{r}
 # Initialize and Import ---------------------------------------------------
 ## packages
 library(tidyverse)
@@ -8,7 +8,9 @@ library(Hmisc)
 
 ## data sources
 nls <- read_spss("U:/HBHE/PRC/Projects/Flint Byrne/Data/Survey/2014-2016-2017_Byrne Analyses/Merged Data & Final Analyses/2014-2016-2017 merged datav1_3.sav")
+```
 
+```{r}
 # NLS Data ----------------------------------------------------------------
 
 ## visualize the data
@@ -32,12 +34,15 @@ nls_means_plots <- nls_means %>%
   facet_wrap(~Variable)
 
 nls_means_plots
+```
 
+```{r}
 ## Run ANCOVA models to see if there were significant improvements in resident
 ## perceptions, between pre- and post- tests, by study condition. Outcome 
 ## variable is the `Group Mean`, factor variable is the Study_Condition, and 
 ## covariate is the original score. So, controlling for the original score,
 ## did the intervention have an impact on the mean level of resident perceptions?
 
-
-
+nls_means_spread <- nls_means %>%
+  spread(key = Survey_Wave, value = `Group Mean`)
+```

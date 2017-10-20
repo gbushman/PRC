@@ -1,0 +1,167 @@
+---
+title: "CPTED/Byrne Analysis"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r init}
+# Initialize
+## packages
+library(tidyverse)
+library(haven)
+library(magrittr)
+library(Hmisc)
+library(forcats)
+```
+
+# Survey Outcomes
+
+```{r}
+# data sources
+nls <- read_spss("U:/HBHE/PRC/Projects/Flint Byrne/Data/Survey/2014-2016-2017_Byrne Analyses/Merged Data & Final Analyses/2014-2016-2017 merged datav1_3.sav")
+
+# rename quality of life column
+colnames(nls)[13] <- "NSQOL"
+
+# clean Survey_Wave
+nls$Survey_Wave <- nls$Survey_Wave %>%
+  as.factor() %>%
+  fct_recode(`2014` = "1", `2017` = "3")
+
+# clean Study_Condition
+nls$Study_Condition <- nls$Study_Condition %>%
+  as.factor() %>%
+  fct_recode(C = "1", `C+B` = "2", Comp = "3")
+```
+
+### Visualize Survey Outcomes
+
+```{r, fig.width=7}
+# summarise means for each group
+nls_means <- nls %>%
+  group_by(Study_Condition, Survey_Wave) %>%
+  summarise(
+    NSQOL            = mean(NSQOL, na.rm = T),
+    SocCapCo         = mean(SocCapCo, na.rm = T), 
+    YouthEmpower     = mean(YouthEmpower, na.rm = T), 
+    FoC              = mean(FoC, na.rm = T), 
+    NHPart           = mean(NHPart, na.rm = T), 
+    NeighborRelation = mean(NeighborRelation, na.rm = T),
+    NHDis            = mean(NHDis, na.rm = T),
+    PolicePercep     = mean(PolicePercep, na.rm = T),
+    PoliceRelation   = mean(PoliceRelation, na.rm = T),
+    Victim           = mean(Victim, na.rm = T),
+    Parks            = mean(Parks, na.rm = T),
+    MentalHealth     = mean(MentalHealth, na.rm = T)
+  ) %>%
+  ungroup() %>%
+  filter(Survey_Wave != 2) %>%
+  gather(key = "Variable", value = "Group Mean", -c(Study_Condition, Survey_Wave))
+
+# plot means
+nls_means_plots <- nls_means %>% 
+  ggplot(aes(x = Study_Condition, 
+             y = `Group Mean`, 
+             fill = factor(Survey_Wave))
+         ) + 
+  geom_col(position = "dodge") +
+  facet_wrap(~Variable) +
+  labs(
+    x = "Study Condition",
+    fill = "Survey Wave"
+  )
+
+# print plot
+nls_means_plots
+```
+
+### Two-way ANOVA (on Study Condition and Survey Wave)
+
+```{r}
+# Run two way ANOVA models to see if there were significant differences in resident perceptions by study condition. Outcome variables are the scales from the NLS survey, factor variables are the Study_Condition and the Survey_Wave. So, did the intervention have an impact on the mean levels of resident perceptions?
+
+# select columns, melt data
+nls_anova_data <- nls %>%
+  select(
+    Survey_ID,
+    NSQOL,  
+    SocCapCo,      
+    YouthEmpower,     
+    FoC,           
+    NHPart,    
+    NeighborRelation,
+    NHDis,     
+    PolicePercep,    
+    PoliceRelation,  
+    Victim,    
+    Parks,
+    MentalHealth,
+    Study_Condition,
+    Survey_Wave
+  ) %>%
+  gather(key = "nls_scale", value = "value", -c(Survey_ID, Study_Condition, Survey_Wave)) %>%
+  filter(Survey_Wave != 2)
+
+# create vector of scales
+scales <- c("NSQOL", 
+            "SocCapCo", 
+            #"YouthEmpower",    Missing data on first wave
+            "FoC", 
+            "NHPart", 
+            #"NeighborRelation", Missing data on first wave and C+B condition
+            "NHDis",
+            "PolicePercep", 
+            "PoliceRelation", 
+            "Victim", 
+            "Parks", 
+            "MentalHealth")
+
+# loop over scale names and run two-way anova
+models <- sapply(scales, function(x){
+  lm(value ~ Study_Condition + Survey_Wave + Study_Condition*Survey_Wave, 
+     data = nls_anova_data, 
+     nls_scale == x)
+}, simplify = F)
+
+# summarise output
+ANOVA.tables <- sapply(models, anova, simplify=FALSE)
+
+# print output
+ANOVA.tables
+```
+
+### Summary of Two-way ANOVA
+
+|Scale                        |Condition       |Wave        |Condition x Wave |
+|-----------------------------|:--------------:|:----------:|:---------------:|
+|Neighborhood Quality of Life |`***`           |            |                 |
+|Social Capital and Cohesion  |                |            |                 |
+|Fear of Crime                |`***`           |`***`       |                 |
+|Neighborhood Participation   |                |`*`         |.                |
+|Neighborhood Disorder        |`***`           |`***`       |                 |
+|Police Perception            |`***`           |`***`       |                 |
+|Police Relations             |`**`            |`**`        |`*`              |
+|Victimization                |                |`**`        |                 |
+|Parks                        |`***`           |`***`       |                 |
+|Mental Health                |                |            |                 |
+
+# PMOT Outcomes
+
+```{r}
+
+```
+
+# Injury Outcomes
+
+```{r}
+
+```
+
+# Crime Incidence Outcomes
+
+```{r}
+
+```
