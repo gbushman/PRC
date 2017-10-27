@@ -15,6 +15,7 @@ library(haven)
 library(magrittr)
 library(Hmisc)
 library(forcats)
+library(stringr)
 ```
 
 # Survey Outcomes
@@ -37,7 +38,7 @@ nls$Study_Condition <- nls$Study_Condition %>%
   fct_recode(C = "1", `C+B` = "2", Comp = "3")
 ```
 
-### Visualize Survey Outcomes
+### Plot of Survey Outcomes
 
 ```{r, fig.width=7}
 # summarise means for each group
@@ -77,6 +78,22 @@ nls_means_plots <- nls_means %>%
 # print plot
 nls_means_plots
 ```
+
+### Summary of Two-way ANOVA
+
+|Scale                        |Condition       |Wave        |Condition x Wave |
+|-----------------------------|:--------------:|:----------:|:---------------:|
+|Neighborhood Quality of Life |`***`           |            |                 |
+|Social Capital and Cohesion  |                |            |                 |
+|Fear of Crime                |`***`           |`***`       |                 |
+|Neighborhood Participation   |                |`*`         |.                |
+|Neighborhood Disorder        |`***`           |`***`       |                 |
+|Police Perception            |`***`           |`***`       |                 |
+|Police Relations             |`**`            |`**`        |`*`              |
+|Victimization                |                |`**`        |                 |
+|Parks                        |`***`           |`***`       |                 |
+|Mental Health                |                |            |                 |
+
 
 ### Two-way ANOVA (on Study Condition and Survey Wave)
 
@@ -120,38 +137,144 @@ scales <- c("NSQOL",
             "MentalHealth")
 
 # loop over scale names and run two-way anova
-models <- sapply(scales, function(x){
+nls_models <- sapply(scales, function(x){
   lm(value ~ Study_Condition + Survey_Wave + Study_Condition*Survey_Wave, 
      data = nls_anova_data, 
      nls_scale == x)
 }, simplify = F)
 
 # summarise output
-ANOVA.tables <- sapply(models, anova, simplify=FALSE)
+nls_ANOVA_tables <- sapply(nls_models, anova, simplify=FALSE)
 
 # print output
-ANOVA.tables
+nls_ANOVA_tables
 ```
-
-### Summary of Two-way ANOVA
-
-|Scale                        |Condition       |Wave        |Condition x Wave |
-|-----------------------------|:--------------:|:----------:|:---------------:|
-|Neighborhood Quality of Life |`***`           |            |                 |
-|Social Capital and Cohesion  |                |            |                 |
-|Fear of Crime                |`***`           |`***`       |                 |
-|Neighborhood Participation   |                |`*`         |.                |
-|Neighborhood Disorder        |`***`           |`***`       |                 |
-|Police Perception            |`***`           |`***`       |                 |
-|Police Relations             |`**`            |`**`        |`*`              |
-|Victimization                |                |`**`        |                 |
-|Parks                        |`***`           |`***`       |                 |
-|Mental Health                |                |            |                 |
 
 # PMOT Outcomes
 
 ```{r}
+# import/clean data
+pmot <- read_spss("U:/HBHE/PRC/Projects/Flint Byrne/Data/Parcel Assessments/Analyses/2014-2017 Merge/Byrne14-17_PMOT_Merge_Final.sav")
 
+## create df for each year
+### 2014
+pmot.2014 <- pmot %>% 
+  select(Parcel_ID:Census_Tract_2010, 
+         Assess_Year_2014:General_Parcel_Blight_Index_2014)
+
+colnames(pmot.2014) <- colnames(pmot.2014) %>% str_replace("_2014", "")
+
+### 2015
+pmot.2015 <- pmot %>% 
+  select(Parcel_ID:Census_Tract_2010, 
+         Assess_Year_2015:General_Parcel_Blight_Index_2015)
+colnames(pmot.2015) <- colnames(pmot.2015) %>% str_replace("_2015", "")
+
+### 2016
+pmot.2016 <- pmot %>% 
+  select(Parcel_ID:Census_Tract_2010, 
+         Assess_Year_2016:General_Parcel_Blight_Index_2016)
+colnames(pmot.2016) <- colnames(pmot.2016) %>% str_replace("_2016", "")
+
+## bind pmots
+pmot <- bind_rows(pmot.2014, pmot.2015, pmot.2016, .id = "Year")
+
+pmot <- pmot %>%
+  mutate(
+    Year = factor(Year),
+    Year = fct_recode(Year, "2014" = "1", "2015" = "2", "2016" = "3")
+  )
+
+# select columns
+pmot <- pmot %>%
+  select(Year, Study_Condition, Building_Maintenance_Scale, Lawn_Maintenance_Scale, General_Parcel_Maintenance_Scale, Building_Blight_Index, Lawn_Blight_Index, General_Parcel_Blight_Index)
+```
+
+### Plot of Property Assessment Outcomes
+
+```{r, fig.width=7}
+# summarise means for each group
+pmot_means <- pmot %>%
+  group_by(Study_Condition, Year) %>%
+  summarise(
+    Building_Maintenance_Scale       = mean(Building_Maintenance_Scale, na.rm = T),
+    Building_Blight_Index            = mean(Building_Blight_Index, na.rm = T),
+    Lawn_Maintenance_Scale           = mean(Lawn_Maintenance_Scale, na.rm = T),
+    Lawn_Blight_Index                = mean(Lawn_Blight_Index, na.rm = T),
+    General_Parcel_Maintenance_Scale = mean(General_Parcel_Maintenance_Scale, na.rm = T),
+    General_Parcel_Blight_Index      = mean(General_Parcel_Blight_Index, na.rm = T)
+  ) %>%
+  ungroup() %>%
+  filter(Study_Condition != 9) %>%
+  gather(key = "Variable", value = "Group Mean", -c(Study_Condition, Year))
+
+# plot means
+pmot_means_plots <- pmot_means %>% 
+  ggplot(aes(x = as.numeric(Year), y = `Group Mean`, color = factor(Study_Condition))) + 
+  geom_line() +
+  geom_point()+
+  scale_x_continuous(limits = c(0, 4), breaks = c(0, 1, 2, 3, 4)) +
+  facet_wrap(~Variable) +
+  labs(
+    x = "Year",
+    color = "Study Condition"
+  )
+
+# print plot
+pmot_means_plots
+```
+
+### Summary of Two-way ANOVA
+
+|Scale                        |Condition       |Year        |Condition x Year |
+|-----------------------------|:--------------:|:----------:|:---------------:|
+|Building Maintenance         |`***`           |`**`        |`*`              |
+|Lawn Maintenance             |`***`           |`***`       |`**`             |
+|Property Maintenance         |`***`           |            |`**`             |
+|Bulding Blight               |`***`           |`**`        |`**`             |
+|Lawn Blight                  |`***`           |`***`       |`***`            |
+|Property Blight              |`***`           |`***`       |`***`            |
+
+### Two-way ANOVA (on Study Condition and Year)
+
+```{r}
+# Run two way ANOVA models to see if there were significant differences in property maintenence by survey year. Outcome variables are the scales and indeces for property assessment, factor variables are the Study_Condition and the Year. So, did the intervention have an impact on the mean levels of resident perceptions?
+
+# select columns, melt data
+pmot_anova_data <- pmot %>%
+  select(
+    Year, 
+    Study_Condition, 
+    Building_Maintenance_Scale, 
+    Lawn_Maintenance_Scale, 
+    General_Parcel_Maintenance_Scale, 
+    Building_Blight_Index, Lawn_Blight_Index, 
+    General_Parcel_Blight_Index
+  ) %>%
+  gather(key = "pmot_scale", value = "value", -c(Study_Condition, Year)) %>%
+  filter(Study_Condition != 9, !is.na(value)) %>%
+  mutate(Study_Condition = as.factor(Study_Condition))
+
+# create vector of scales
+scales <- c("Building_Maintenance_Scale", 
+            "Lawn_Maintenance_Scale", 
+            "General_Parcel_Maintenance_Scale", 
+            "Building_Blight_Index", 
+            "Lawn_Blight_Index", 
+            "General_Parcel_Blight_Index")
+
+# loop over scale names and run two-way anova
+pmot_models <- sapply(scales, function(x){
+  lm(value ~ Study_Condition + Year + Study_Condition*Year, 
+     data = pmot_anova_data, 
+     pmot_scale == x)
+}, simplify = F)
+
+# summarise output
+pmot_ANOVA_tables <- sapply(pmot_models, anova, simplify=FALSE)
+
+# print output
+pmot_ANOVA_tables
 ```
 
 # Injury Outcomes
