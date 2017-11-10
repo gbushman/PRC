@@ -143,11 +143,22 @@ nls_models <- sapply(scales, function(x){
      nls_scale == x)
 }, simplify = F)
 
+# run anova without interaction term for pairwise comparison
+nls_pairwise <- sapply(scales, function(x){
+  aov(value ~ Study_Condition + Survey_Wave, 
+     data = nls_anova_data, 
+     subset = nls_scale == x)
+}, simplify = F)
+
 # summarise output
 nls_ANOVA_tables <- sapply(nls_models, anova, simplify=FALSE)
 
+# post-hoc testing
+nls_pairwise_tables <- sapply(nls_pairwise, TukeyHSD, simplify=FALSE)
+
 # print output
 nls_ANOVA_tables
+nls_pairwise_tables
 ```
 
 # PMOT Outcomes
@@ -197,23 +208,29 @@ pmot <- pmot %>%
 pmot_means <- pmot %>%
   group_by(Study_Condition, Year) %>%
   summarise(
-    Building_Maintenance_Scale       = mean(Building_Maintenance_Scale, na.rm = T),
-    Building_Blight_Index            = mean(Building_Blight_Index, na.rm = T),
-    Lawn_Maintenance_Scale           = mean(Lawn_Maintenance_Scale, na.rm = T),
-    Lawn_Blight_Index                = mean(Lawn_Blight_Index, na.rm = T),
-    General_Parcel_Maintenance_Scale = mean(General_Parcel_Maintenance_Scale, na.rm = T),
-    General_Parcel_Blight_Index      = mean(General_Parcel_Blight_Index, na.rm = T)
+    Building_Maintenance       = mean(Building_Maintenance_Scale, na.rm = T),
+    Building_Blight            = mean(Building_Blight_Index, na.rm = T),
+    Lawn_Maintenance           = mean(Lawn_Maintenance_Scale, na.rm = T),
+    Lawn_Blight                = mean(Lawn_Blight_Index, na.rm = T),
+    General_Parcel_Maintenance = mean(General_Parcel_Maintenance_Scale, na.rm = T),
+    General_Parcel_Blight      = mean(General_Parcel_Blight_Index, na.rm = T)
   ) %>%
   ungroup() %>%
   filter(Study_Condition != 9) %>%
-  gather(key = "Variable", value = "Group Mean", -c(Study_Condition, Year))
+  gather(key = "Variable", value = "Group Mean", -c(Study_Condition, Year)) %>%
+  mutate(
+    Year = as.numeric(Year),
+    Year = (Year + 2013),
+    Study_Condition = as.factor(Study_Condition),
+    Study_Condition = fct_recode(Study_Condition, C = "1", `C+B` = "2", Comp = "3")
+  )
 
 # plot means
 pmot_means_plots <- pmot_means %>% 
-  ggplot(aes(x = as.numeric(Year), y = `Group Mean`, color = factor(Study_Condition))) + 
+  ggplot(aes(x = Year, y = `Group Mean`, color = factor(Study_Condition))) + 
   geom_line() +
   geom_point()+
-  scale_x_continuous(limits = c(0, 4), breaks = c(0, 1, 2, 3, 4)) +
+  scale_x_continuous(limits = c(2013.5, 2016.5), breaks = c(2014, 2015, 2016)) +
   facet_wrap(~Variable) +
   labs(
     x = "Year",
@@ -270,11 +287,22 @@ pmot_models <- sapply(scales, function(x){
      pmot_scale == x)
 }, simplify = F)
 
+# run anova without interaction term for pairwise comparison
+pmot_pairwise <- sapply(scales, function(x){
+  aov(value ~ Study_Condition + Year, 
+     data = pmot_anova_data, 
+     subset = pmot_scale == x)
+}, simplify = F)
+
 # summarise output
 pmot_ANOVA_tables <- sapply(pmot_models, anova, simplify=FALSE)
 
+# post-hoc testing
+pmot_pairwise_tables <- sapply(pmot_pairwise, TukeyHSD, simplify=FALSE)
+
 # print output
 pmot_ANOVA_tables
+pmot_pairwise_tables
 ```
 
 # Injury Outcomes
@@ -285,6 +313,22 @@ pmot_ANOVA_tables
 
 # Crime Incidence Outcomes
 
-```{r}
+```{r, eval = F}
+crime <- read_spss("U:/HBHE/PRC/Projects/YVPC 2000-2005/Crime Data/Jianan's Working File/2015 Flint/2015 Crime Data/Flint_Crime_Data_2015.sav")
 
+crime_geo <- crime %>%
+  filter(!is.na(LATITUDE), !is.na(LONGITUDE)) %>%
+  as.data.frame()
+
+coordinates(crime_geo) <- ~LONGITUDE+LATITUDE
 ```
+
+
+
+
+
+
+
+
+
+
