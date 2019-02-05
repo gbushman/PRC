@@ -1,2 +1,2 @@
 # PRC
-Independent study working with PRC/YVPC data.
+Prevention Research Center / Youth Violence Prevention Center work.
