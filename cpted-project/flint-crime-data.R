@@ -17,7 +17,7 @@ flint <- readOGR(dsn=fgdb,layer="Flint_Limits")
 #ogrListLayers(fgdb)
 
 # specify projection
-flint <- spTransform(flint, CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+flint <- spTransform(flint, CRS("+proj=longlat +datum=WGS84"))
 
 
 # 2012 crime data ---------------------------------------------------------
@@ -251,7 +251,7 @@ crimes <- bind_rows(yr12, yr13, yr14, yr15, yr16, yr17)
 crimes_cl <- crimes %>% filter(!is.na(long), !is.na(lat))
 
 # create spatial points data frame
-crimes_cl <- SpatialPointsDataFrame(coords = crimes_cl[ , 4:5], data = crimes_cl[ , 1:3], proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+crimes_cl <- SpatialPointsDataFrame(coords = crimes_cl[ , 4:5], data = crimes_cl[ , 1:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
 
 # filter points based on shapefile boundaries
 crimes_cl <- crimes_cl[flint, ]
@@ -263,7 +263,11 @@ points(crimes_cl)
 # convert to data frame
 crimes_cl_df <- as.data.frame(crimes_cl) %>%
   filter(year(inc_date) %in% 2012:2017) %>%
-  mutate(year = year(inc_date))
+  mutate(year = year(inc_date)) %>%
+  group_by(inc_id) %>%
+  arrange(inc_date) %>%
+  slice(1) %>%
+  ungroup()
 
 # plot
 crimes_cl_df %>%
@@ -288,4 +292,10 @@ crimes %>%
   filter(year %in% 2012:2017) %>%
   ggplot(aes(x = year, y = mis)) +
   geom_col() +
+  scale_y_continuous(limits = c(0, 0.5)) +
   labs(x = "Year", y = "Fraction Missing")
+
+
+# export ------------------------------------------------------------------
+
+write_xlsx(crimes_cl_df, "C:/Users/gbushman/Desktop/20181009-crimes-12-17.xlsx")
