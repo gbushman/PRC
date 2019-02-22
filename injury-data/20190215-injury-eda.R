@@ -7,6 +7,8 @@ library(lubridate)
 library(magrittr)
 
 inj <- read_excel("U:/HBHE/PRC/Projects/YVPC 2015-2020/Data Management/Injury Data/Flint/Original/FL17_Injury_Data_20180620_Original.xlsx")
+inj2 <- read_excel("U:/HBHE/PRC/Projects/YVPC 2015-2020/Data Management/Injury Data/Flint/Original/FL17_Injury_Data_20180620_Original.xlsx", col_types = "text")
+
 
 
 # clean up injury data ----------------------------------------------------
