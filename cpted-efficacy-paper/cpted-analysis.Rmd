@@ -17,8 +17,12 @@ library(readxl)
 library(lme4)
 library(car)
 library(knitr)
+library(ICC)
+library(sjPlot)
+library(lmerTest)
+library(zoo)
 
-df <- read_excel("C:/Users/Greg/Box/CPTED Project (PRC)/CPTED Analysis/20181010-cpted-extract.xlsx") %>% mutate(crime_rate = as.numeric(crime_rate))
+df <- read_excel("C:/Users/gbushman/Box/CPTED Project (PRC)/CPTED Analysis/20190410-cpted-extract.xlsx") %>% mutate(crime_rate = as.numeric(crime_rate))
 
 crime_cat_lu <- c(
   "CPTED" = "0. CPTED",
@@ -33,8 +37,8 @@ df$crime_rate_cat <- crime_cat_lu[df$crime_rate_cat]
 df <- df %>% filter(!is.infinite(cpted), !is.na(cpted), !is.infinite(crime_rate), !is.na(crime_rate_cat), !is.na(nbdis))
 
 frame <- df %>% 
-  filter(year >= 2012, year < 2018, !is.infinite(crime_rate)) %>%
-  mutate(year = year - 2012)
+  filter(year >= 2011, year < 2018, !is.infinite(crime_rate)) %>%
+  mutate(year = year - 2011)
 
 start_rate <- frame %>%
   filter(year >= 0, year < 1) %>%
@@ -45,7 +49,7 @@ start_rate <- frame %>%
 frame <- left_join(frame, start_rate, by = "area")
 
 end_rate <- frame %>%
-  filter(year >= 5, year < 6) %>%
+  filter(year >= 6, year < 7) %>%
   group_by(area) %>%
   summarise(end_rate = sum(crime_rate)) %>%
   ungroup()
@@ -55,105 +59,273 @@ frame <- left_join(frame, end_rate, by = "area")
 frame <- frame %>%
   mutate(
     cpted_start = cpted,
-    cpted_start = ifelse(area == "Atwood Stadium" & cpted == TRUE & year < 3.5, FALSE, cpted_start),
-    cpted_start = ifelse(area == "Einstein's Bagels" & cpted == TRUE & year < 1.75, FALSE, cpted_start),
-    cpted_start = ifelse(area == "Farah's Food Market" & cpted == TRUE & year <= 3.75, FALSE, cpted_start),
-    cpted_start = ifelse(area == "Sunset Village Apartments" & cpted == TRUE & year <= 4.25, FALSE, cpted_start),
-    cpted_start = ifelse(area == "University Square" & cpted == TRUE & year <= 0.5, FALSE, cpted_start)
+    cpted_start = ifelse(area == "Atwood Stadium" & cpted == TRUE & year < 4.5, FALSE, cpted_start),
+    cpted_start = ifelse(area == "Einstein's Bagels" & cpted == TRUE & year < 2.75, FALSE, cpted_start),
+    cpted_start = ifelse(area == "Farah's Food Market" & cpted == TRUE & year <= 4.75, FALSE, cpted_start),
+    cpted_start = ifelse(area == "Sunset Village Apartments" & cpted == TRUE & year <= 5.25, FALSE, cpted_start),
+    cpted_start = ifelse(area == "University Square" & cpted == TRUE & year <= 1.5, FALSE, cpted_start)
   )
+
+frame_supp <- frame %>%
+  select(area, tot_pop, start_rate) %>%
+  distinct() %>%
+  mutate(
+    tot_pop_z = scale(tot_pop)[,1],
+    start_rate_z = scale(start_rate)[,1]
+  ) %>%
+  select(area, contains("z"))
+
+frame <- left_join(frame, frame_supp, by = "area")
+
+frame <- frame %>% 
+  group_by(area) %>% 
+  arrange(area, year) %>% 
+  mutate(rolling_crime_rate = rollmean(crime_rate, k = 4, fill = NA, align = "right")) %>% 
+  ungroup()
+
+df <- df %>% 
+  group_by(area) %>% 
+  arrange(area, year) %>% 
+  mutate(rolling_crime_rate = rollmean(crime_rate, k = 4, fill = NA, align = "right")) %>% 
+  ungroup()
 ```
 
 # Summary Stats
-```{r}
+```{r summary-stats}
 # Total Crimes
-frame %>% group_by(cpted) %>% summarise(n = sum(n_crimes))
+frame %>% 
+  group_by(cpted) %>% 
+  summarise(n = sum(n_crimes)) %>% 
+  kable()
 
 # Avg. 2012 Crime Rate
-frame %>% group_by(area) %>% arrange(start_rate) %>% slice(1) %>% ungroup() %>% group_by(cpted) %>% summarise(mean_rate = mean(start_rate), sd_rate = sd(start_rate)) %>% as.data.frame()
+frame %>% 
+  group_by(area) %>% 
+  arrange(start_rate) %>% 
+  slice(1) %>% ungroup() %>% 
+  group_by(cpted) %>% 
+  summarise(mean_rate = mean(start_rate), sd_rate = sd(start_rate)) %>%
+  as.data.frame() %>% 
+  kable()
 
 # Avg. 2017 Crime Rate
-frame %>% group_by(area) %>% arrange(end_rate) %>% slice(1) %>% ungroup() %>% group_by(cpted) %>% summarise(mean_rate = mean(end_rate), sd_rate = sd(end_rate)) %>% as.data.frame()
+frame %>% 
+  group_by(area) %>% 
+  arrange(end_rate) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  group_by(cpted) %>% 
+  summarise(mean_rate = mean(end_rate), sd_rate = sd(end_rate)) %>%
+  as.data.frame() %>% 
+  kable()
 
 # Avg. Land Area
 
+### check spatial analysis script for these calculations ###
 
 # Avg. Neighborhood Disadvantage
-frame %>% group_by(area) %>% arrange(nbdis) %>% slice(1) %>% ungroup() %>% group_by(cpted) %>% summarise(mean_nbdis = mean(nbdis), sd_nbdis = sd(nbdis)) %>% as.data.frame()
+frame %>% 
+  group_by(area) %>% 
+  arrange(nbdis) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  group_by(cpted) %>% 
+  summarise(mean_nbdis = mean(nbdis), sd_nbdis = sd(nbdis)) %>% 
+  as.data.frame() %>% 
+  kable()
 
 # Avg. Estimated Population
-frame %>% group_by(area) %>% arrange(tot_pop) %>% slice(1) %>% ungroup() %>% group_by(cpted) %>% summarise(mean_pop = mean(tot_pop), sd_pop = sd(tot_pop)) %>% as.data.frame()
+frame %>% 
+  group_by(area) %>% 
+  arrange(tot_pop) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  group_by(cpted) %>% 
+  summarise(mean_pop = mean(tot_pop), sd_pop = sd(tot_pop)) %>% 
+  as.data.frame() %>% 
+  kable()
+```
+
+# ANOVA and ICC
+```{r anova-icc}
+# ANOVA
+lm(crime_rate ~ year * area, data = frame) %>% aov() %>% summary()
+
+# ICC
+ICCest(area, crime_rate, data = frame)
+```
+
+# Models
+### Model 1: time only, slope by year, intercept by area
+```{r m1}
+m1 <- lmer(
+  rolling_crime_rate ~
+    year + 
+    nbdis +
+    tot_pop_z +
+    (year | area),
+  data = frame,
+  REML = FALSE
+)
+
+summary(m1)
+```
+
+### Model 2: main effects only, slope by year, intercept by area
+```{r m2}
+m2 <- lmer(
+  rolling_crime_rate ~
+    year +
+    cpted_start +
+    start_rate_z +
+    nbdis +
+    tot_pop_z +
+    (year | area),
+  data = frame,
+  REML = FALSE
+)
+
+ss2 <- getME(m2, c("theta","fixef"))
+m2 <- update(m2, start = ss2, control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5)))
+
+summary(m2)
+```
+
+### Model 3: main and interaction effects, slope by year, intercept by area
+```{r m3}
+m3 <- lmer(
+  rolling_crime_rate ~
+    year * cpted_start +
+    year * start_rate_z +
+    nbdis +
+    tot_pop_z +
+    (year | area),
+  data = frame,
+  REML = FALSE
+)
+
+summary(m3)
+```
+
+### Model 4: same as M3, minus the CPTED * Time interaction
+```{r m4}
+m4 <- lmer(
+  rolling_crime_rate ~
+    cpted_start +
+    year * start_rate_z +
+    nbdis +
+    tot_pop_z +
+    (year | area),
+  data = frame,
+  REML = FALSE
+)
+
+summary(m4)
+```
+
+### Model Comparison
+```{r}
+# original nested models
+anova(m1, m2, m4, m3)
+
+# test against supplemental models
+#anova(m3, m4, m5)
+```
+
+# Output Tables
+```{r}
+reg_table <- tab_model(
+  m1, m2, m4, m3,
+  digits = 3,
+  p.style = "a",
+  show.p = FALSE,
+  show.ci = FALSE,
+  show.icc = FALSE,
+  show.r2 = FALSE
+)
+
+reg_table
+```
+
+# CPTED vs Control Area Crime Trends
+```{r lm-fig}
+windowsFonts(Times = windowsFont("Times New Roman"))
+
+# LINEAR (looks good with 550 x 350 dimensions)
+df %>%
+  filter(year >= 2011, year <= 2018) %>%
+  mutate(
+    cpted_cat = ifelse(cpted == TRUE, "CPTED Areas", "Control Areas"),
+    cpted_cat = factor(cpted_cat),
+    cpted_cat = fct_relevel(cpted_cat, "CPTED Areas", "Control Areas")
+  ) %>%
+  ggplot(aes(x = year, y = rolling_crime_rate, color = cpted_cat)) +
+  geom_smooth(method = "lm", se = T, size = 1.1) +
+  labs(x = "Year", y = "Crime Rate (per 1,000)", color = "") +
+  scale_x_continuous(breaks = seq(2011, 2018, 1), limits = c(2011, 2018)) +
+  scale_color_manual(values = c("grey10", "grey60")) +
+  theme_classic() +
+  theme(
+    text = element_text(size = 15, colour = "black", family = "Times"),
+    axis.text = element_text(size = 12, colour = "black", family = "Times"),
+    legend.text = element_text(size = 12, colour = "black", family = "Times"),
+    legend.position = c(.8, .9)
+  )
+
+df %>%
+  filter(year >= 2011, year <= 2018) %>%
+  mutate(
+    cpted_cat = ifelse(cpted == TRUE, "CPTED Areas", "Control Areas"),
+    cpted_cat = factor(cpted_cat),
+    cpted_cat = fct_relevel(cpted_cat, "CPTED Areas", "Control Areas")
+  ) %>%
+  group_by(cpted_cat, year) %>%
+  summarise(
+    crime_rate = mean(crime_rate),
+    rolling_crime_rate = mean(rolling_crime_rate)
+  ) %>%
+  ungroup() %>%
+  ggplot() +
+  geom_line(aes(x = year, y = crime_rate, color = cpted_cat), alpha = 1, linetype = "dashed") +
+  #geom_point(aes(x = year, y = crime_rate, color = cpted_cat)) +
+  geom_line(aes(x = year, y = rolling_crime_rate, color = cpted_cat), size = 1.1) +
+  labs(x = "Year", y = "Crime Rate (per 1,000)", color = "") +
+  scale_x_continuous(breaks = seq(2011, 2018, 1), limits = c(2011, 2018)) +
+  scale_color_manual(values = c("grey10", "grey60")) +
+  theme_classic() +
+  theme(
+    text = element_text(size = 15, colour = "black", family = "Times"),
+    axis.text = element_text(size = 12, colour = "black", family = "Times"),
+    legend.text = element_text(size = 12, colour = "black", family = "Times"),
+    legend.position = c(.8, .9)
+  )
 
 ```
 
-# CPTED vs Non-CPTED Crime Trends
-```{r lm-area-fig}
+```{r other-figs, include = FALSE}
 # LOESS FIT BY AREA
-frame %>% 
+frame %>%
   filter(area %in% unique(df$area)[1:5]) %>%
   mutate(cpted_cat = ifelse(crime_rate_cat == "0. CPTED", "CPTED", "Non-CPTED")) %>%
   ggplot(aes(x = year, y = crime_rate)) +
   geom_smooth(method = "loess", se = F) +
   labs(x = "Year", y = "Crime Rate", color = "") +
   facet_wrap(~area)
-```
 
-```{r loess-fig}
+
 # LOESS
-df %>% 
+df %>%
   mutate(cpted_cat = ifelse(crime_rate_cat == "0. CPTED", "CPTED", "Non-CPTED")) %>%
   ggplot(aes(x = year, y = crime_rate, color = cpted_cat)) +
   geom_smooth(method = "loess", se = F) +
   labs(x = "Year", y = "Crime Rate", color = "")
-```
 
-```{r lm-fig}
-# LINEAR
-df %>% 
-  filter(year >= 2012, year <= 2018) %>%
-  mutate(cpted_cat = ifelse(crime_rate_cat == "0. CPTED", "CPTED", "Non-CPTED")) %>%
-  ggplot(aes(x = year, y = crime_rate, color = cpted_cat)) +
-  geom_smooth(method = "lm", se = F) +
-  labs(x = "Year", y = "Crime Rate (per 1,000)", color = "") +
-  scale_x_continuous(breaks = seq(2012, 2018, 1))
-```
 
-```{r quart-cpted-fig}
 # CPTED vs Quartiles
-df %>% 
+df %>%
   filter(year >= 2012, year <= 2018) %>%
   mutate(cpted_cat = ifelse(crime_rate_cat == "0. CPTED", "CPTED", "Non-CPTED")) %>%
   ggplot(aes(x = year, y = crime_rate, color = crime_rate_cat)) +
   geom_smooth(method = "loess", se = F) +
   labs(x = "Year", y = "Crime Rate (per 1,000)", color = "")
-```
-
-
-# Models
-```{r m1}
-# model 1
-m1 <- lmer(
-  crime_rate ~
-    year +
-    (year | area),
-  data = frame
-)
-
-summary(m1)
-Anova(m1)
-```
-
-```{r m3}
-# model 3
-m3 <- lmer(
-  crime_rate ~
-    year * cpted_start +
-    year * start_rate +
-    nbdis +
-    tot_pop +
-    (year | area),
-  data = frame
-)
-
-summary(m3)
-Anova(m3)
 ```

@@ -15,8 +15,8 @@ library(sp)
 
 # point data --------------------------------------------------------------
 
-crimes <- read_excel("C:/Users/Greg/Box/CPTED Project (PRC)/CPTED Analysis/20181009-crimes-12-17.xlsx")
-crimes <- SpatialPointsDataFrame(coords = crimes[ , 4:5], data = crimes[ , 1:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
+crimes <- read_excel("C:/Users/gbushman/Box/CPTED Project (PRC)/CPTED Analysis/20190410-crimes-11-17.xlsx")
+crimes <- SpatialPointsDataFrame(coords = list(crimes[ ,"long"], crimes[ ,"lat"]), data = crimes[ , 1:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
 crimes <- spTransform(crimes, CRS("+init=epsg:26916"))
 
 # hotspots <- read_excel("C:/Users/gbushman/Desktop/hotspot-locations.xlsx")
@@ -107,8 +107,8 @@ hotspots <- spTransform(hotspots, CRS("+init=epsg:26916"))
 # flint shapefiles --------------------------------------------------------
 
 # The input file geodatabase
-fgdb <- "G:/gbushman/cpted/Final-IS.gdb"
-flint <- readOGR(dsn = fgdb,layer = "Flint_Limits")
+fgdb <- "C:/Users/gbushman/Box/CPTED Project (PRC)/CPTED.gdb"
+flint <- readOGR(dsn = fgdb,layer = "Flint")
 flint_bg <- readOGR(dsn = fgdb, layer = "Flint_Block_Groups")
 #ogrListLayers(fgdb)
 
@@ -191,8 +191,10 @@ int %>%
   summarise(mean_area = mean(place_area), sd_area = sd(place_area)) %>% 
   as.data.frame()
 
+drop_bgs <- unique(as.character(int$GEOID10))
+
 bg_int %>% 
-  filter(!GEOID10 %in% c("260490028001", "260499801001", "260499800001", "260490015001", "260490028002", "260490015003", "260490037002", "260490016001", "260490016003", "260490016005", "260490037003", "260490015002")) %>%
+  filter(!GEOID10 %in% drop_bgs) %>%
   group_by(GEOID10) %>% 
   arrange(bg_area) %>% 
   slice(1) %>% 
@@ -222,21 +224,21 @@ crimes_df <- left_join(crimes_df, bg_int, by = c("GEOID10", "Place")) %>%
 
 # plot hotspots and buffers -----------------------------------------------
 
-hotspots_lflt  <- spTransform(hotspots,  CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
-hs_buffer_lflt <- spTransform(hs_buffer,  CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
-flint_lflt     <- spTransform(flint, CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
-flint_bg_lflt  <- spTransform(flint_bg, CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
-
-hotspots_map <- leaflet() %>%
-  addProviderTiles("Esri.WorldImagery", options = providerTileOptions(opacity = 0.5)) %>%
-  addPolygons(data = flint_lflt, color = "red", weight = 5, fillColor = "transparent") %>%
-  addPolygons(data = flint_bg_lflt, color = "red", weight = 2, fillColor = "transparent") %>%
-  addPolygons(data = hs_buffer_lflt, fillColor = "blue") %>%
-  addPolygons(data = hotspots_lflt, fillColor = "blue")
+# hotspots_lflt  <- spTransform(hotspots,  CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
+# hs_buffer_lflt <- spTransform(hs_buffer,  CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
+# flint_lflt     <- spTransform(flint, CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
+# flint_bg_lflt  <- spTransform(flint_bg, CRS("+ellps=WGS84 +proj=longlat +datum=WGS84 +no_defs"))
+# 
+# hotspots_map <- leaflet() %>%
+#   addProviderTiles("Esri.WorldImagery", options = providerTileOptions(opacity = 0.5)) %>%
+#   addPolygons(data = flint_lflt, color = "red", weight = 5, fillColor = "transparent") %>%
+#   addPolygons(data = flint_bg_lflt, color = "red", weight = 2, fillColor = "transparent") %>%
+#   addPolygons(data = hs_buffer_lflt, fillColor = "blue") %>%
+#   addPolygons(data = hotspots_lflt, fillColor = "blue")
 
 
 # export ------------------------------------------------------------------
 
-write_xlsx(crimes_df, "C:/Users/Greg/Box/CPTED Project (PRC)/CPTED Analysis/20181009-crimes-bg.xlsx")
+write_xlsx(crimes_df, "C:/Users/gbushman/Box/CPTED Project (PRC)/CPTED Analysis/20190410-crimes-bg.xlsx")
 
 #rm(list = ls())

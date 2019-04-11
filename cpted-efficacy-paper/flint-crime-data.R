@@ -4,6 +4,7 @@
 library(tidyverse)
 library(readxl)
 library(lubridate)
+library(haven)
 library(rgdal)
 library(sf)
 library(sp)
@@ -12,12 +13,41 @@ library(sp)
 # flint shapefile ---------------------------------------------------------
 
 # The input file geodatabase
-fgdb <- "G:/gbushman/cpted/Final-IS.gdb"
-flint <- readOGR(dsn=fgdb,layer="Flint_Limits")
-#ogrListLayers(fgdb)
+flint_sf <- st_read("C:/Users/gbushman/Documents/Projects/flint-roads/Flint Roads/Flint Roads.gdb", "Flint_Boundary")
+flint_sf <- st_transform(flint_sf, crs = 6498)
 
-# specify projection
-flint <- spTransform(flint, CRS("+proj=longlat +datum=WGS84"))
+
+# 2011 crime data ---------------------------------------------------------
+
+# read in 2012 crime data
+crm11 <- read_excel("U:/HBHE/PRC/Projects/YVPC 2000-2005/Crime Data/Original Crime Data Files/2011 Original Excel Files/1ExportCases.xls")
+off11 <- read_excel("U:/HBHE/PRC/Projects/YVPC 2000-2005/Crime Data/Original Crime Data Files/2011 Original Excel Files/2ExportCase Offense.xls")
+add11 <- read_spss("C:/Users/gbushman/Box/YVPC Crime Data/Flint/FL11_Crime_Data_20180323_Cleaned_v1.sav") %>% zap_labels()
+
+# join
+yr11 <- left_join(
+  crm11 %>% select(CaseNumber, OccurredDate),
+  off11 %>% select(CaseNumber, CrimeCode),
+  by = "CaseNumber"
+) %>%
+  left_join(
+    add11 %>% select(CaseNumber, Crime_Incident_Longitude, Crime_Incident_Latitude),
+    by = "CaseNumber"
+  ) %>%
+  distinct() %>%
+  select(
+    inc_id        = CaseNumber,    
+    inc_date      = OccurredDate,    
+    offns_code    = CrimeCode, 
+    lat           = Crime_Incident_Longitude,        
+    long          = Crime_Incident_Latitude  
+  ) %>%
+  mutate(
+    inc_date = as.Date(inc_date, format = "%m/%d/%y")
+  )
+
+# clean up workspace
+rm(crm11, off11, add11)
 
 
 # 2012 crime data ---------------------------------------------------------
@@ -245,24 +275,29 @@ rm(mic17, off17, add17)
 
 # combine data, create spatial frame --------------------------------------
 
-crimes <- bind_rows(yr12, yr13, yr14, yr15, yr16, yr17)
+crimes <- bind_rows(yr11, yr12, yr13, yr14, yr15, yr16, yr17)
 
 # filter blanks in spatial data
 crimes_cl <- crimes %>% filter(!is.na(long), !is.na(lat))
 
 # create spatial points data frame
-crimes_cl <- SpatialPointsDataFrame(coords = crimes_cl[ , 4:5], data = crimes_cl[ , 1:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
+crimes_cl <- crimes_cl %>%
+  mutate(
+    long = as.numeric(long),
+    lat = as.numeric(lat)
+  ) %>%
+  st_as_sf(coords = c("long", "lat"), crs = 4326) %>%
+  st_transform(crs = 6498)
 
 # filter points based on shapefile boundaries
-crimes_cl <- crimes_cl[flint, ]
-
-# plot
-plot(flint)
-points(crimes_cl)
+flint_crimes <- crimes_cl[flint_sf, ]
 
 # convert to data frame
-crimes_cl_df <- as.data.frame(crimes_cl) %>%
-  filter(year(inc_date) %in% 2012:2017) %>%
+crimes_cl_df <- crimes %>%
+  filter(
+    inc_id %in% flint_crimes$inc_id,
+    year(inc_date) %in% 2011:2017
+  ) %>%
   mutate(year = year(inc_date)) %>%
   group_by(inc_id) %>%
   arrange(inc_date) %>%
@@ -289,7 +324,7 @@ crimes %>%
     nas = sum(is.na(long)|is.na(lat)),
     mis = nas / tot
   ) %>%
-  filter(year %in% 2012:2017) %>%
+  filter(year %in% 2011:2017) %>%
   ggplot(aes(x = year, y = mis)) +
   geom_col() +
   scale_y_continuous(limits = c(0, 0.5)) +
@@ -298,4 +333,4 @@ crimes %>%
 
 # export ------------------------------------------------------------------
 
-write_xlsx(crimes_cl_df, "C:/Users/gbushman/Desktop/20181009-crimes-12-17.xlsx")
+write_xlsx(crimes_cl_df, "C:/Users/gbushman/Box/CPTED Project (PRC)/CPTED Analysis/20190410-crimes-11-17.xlsx")
