@@ -6,6 +6,7 @@ library(lubridate)
 library(spatialEco)
 library(spatstat)
 library(maptools)
+library(knitr)
 library(sf)
 
 gun_crimes <- read_rds("C:/Users/gbushman/Documents/Projects/facts/gun-crimes/flint-gun-crimes.rds")
@@ -13,6 +14,14 @@ flint      <- read_rds("C:/Users/gbushman/Documents/Projects/facts/gun-crimes/fl
 
 
 # gun crimes eda ----------------------------------------------------------
+
+# table of gun crimes
+gun_crimes %>%
+  as.data.frame() %>%
+  mutate(year = year(inc_date)) %>%
+  group_by(year) %>%
+  summarise(`number of crimes` = n()) %>%
+  kable()
 
 # crime counts by year
 gun_crimes %>%
@@ -35,7 +44,7 @@ gun_crimes_density <- cbind(gun_crimes, st_coordinates(gun_crimes)) %>%
 
 ggplot() +
   stat_density_2d(data = gun_crimes_density, aes(X, Y, fill = stat(density)), geom = "raster", contour = FALSE) +
-  geom_sf(data = flint, aes(color = "red"), alpha = 0.01) +
+  geom_sf(data = flint, aes(color = "red"), alpha = 0.01, show.legend = FALSE) +
   scale_fill_viridis_c() +
   scale_x_continuous(breaks = seq(-83.78, -83.61, 0.03)) +
   theme_minimal() +
@@ -50,3 +59,5 @@ crimes_ppp <- ppp(st_coordinates(gun_crimes)[ ,"X"], st_coordinates(gun_crimes)[
 crime_density <- density(crimes_ppp, kernel = "gaussian", edge = T, diggle = T, adjust = 0.6, scalekernel = T)
 
 plot(crime_density)
+
+plot(allstats(crimes_ppp), main = "")

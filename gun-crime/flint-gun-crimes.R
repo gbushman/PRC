@@ -269,11 +269,7 @@ crimes <- crimes %>%
   )
 
 # filter blanks in spatial data
-crimes_cl <- crimes %>% 
-  filter(
-    !is.na(long), !is.na(lat),
-    gun_crime == T
-  )
+crimes_cl <- crimes %>% filter(!is.na(long), !is.na(lat))
 
 # create spatial points data frame
 crimes_cl <- st_as_sf(crimes_cl, coords = c("long", "lat"), crs = 4326)
